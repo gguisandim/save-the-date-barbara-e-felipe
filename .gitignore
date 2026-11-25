@@ -1,7 +1,13 @@
 node_modules
 .next
+.next-qa
 out
 *.log
 .env*.local
+.env
+.data/
+.source-photos/
+.qa/
+.browser-profile/
 .DS_Store
 *.tsbuildinfo

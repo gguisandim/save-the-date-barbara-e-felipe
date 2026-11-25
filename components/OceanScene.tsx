@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import { Countdown } from "@/components/Countdown";
 import { OceanCanvas } from "@/components/OceanCanvas";
+import { EditorialStory } from "@/components/EditorialStory";
 import { EVENT } from "@/lib/event";
 
 function WaveIcon({ active }: { active: boolean }) {
@@ -245,19 +246,7 @@ export function OceanScene() {
         </div>
       </section>
 
-      <section id="sobre" className="epilogue" aria-labelledby="epilogue-title">
-        <div className="epilogue-orb" aria-hidden="true" />
-        <span className="epilogue-index">01 / 01</span>
-        <div className="epilogue-content">
-          <div className="epilogue-overline"><span className="small-line" /> A NOSSA HISTÓRIA CONTINUA <span className="small-line" /></div>
-          <h2 id="epilogue-title">Há momentos<br /><em>que ficam para sempre.</em></h2>
-          <p>Em março de 2027, temos um novo capítulo para celebrar.</p>
-          <div className="epilogue-separator" aria-hidden="true"><span /><span className="diamond">✧</span><span /></div>
-          <p className="epilogue-signature">Bárbara <i>&</i> Felipe</p>
-          <p className="epilogue-footnote">MAIS DETALHES EM BREVE</p>
-        </div>
-        <a href="#inicio" className="back-to-top">VOLTAR AO INÍCIO <span aria-hidden="true">↑</span></a>
-      </section>
+      <EditorialStory />
       <audio
         ref={audioRef} src="/media/brisa-e-gaivotas.mp3" loop preload="none"
         onError={() => { setAudioError(true); setAudioOn(false); }}
