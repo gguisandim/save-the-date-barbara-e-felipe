@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { WEDDING_DATE } from "@/lib/event";
 import {
   BRAZILIAN_STATES,
   validateInvitationAddress,
@@ -153,7 +154,7 @@ export function InvitationDialog({ open, onClose }: { open: boolean; onClose: ()
         ) : (
           <>
             <header className="form-header">
-              <p className="form-kicker">BÁRBARA &amp; FELIPE · MARÇO 2027</p>
+              <p className="form-kicker">BÁRBARA &amp; FELIPE · {WEDDING_DATE.numericLabel}</p>
               <h2 id="invitation-title">Nosso convite<br /><em>está a caminho.</em></h2>
               <p>Queremos que o nosso convite chegue até você. Preencha seus dados abaixo.</p>
             </header>

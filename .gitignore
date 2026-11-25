@@ -8,7 +8,7 @@ out
 .data/
 .source-photos/
 .qa/
-.qa-three-act/
+.qa-*/
 .browser-profile/
 .DS_Store
 *.tsbuildinfo

@@ -53,9 +53,18 @@ As fotos selecionadas do ZIP foram convertidas para WebP em `public/photos`, com
 node scripts/prepare_photos.mjs <pasta-com-jpgs> public/photos
 ```
 
+## Mídia da abertura e som
+
+A abertura utiliza somente duas mídias visuais, centralizadas em `OCEAN_MEDIA` dentro de `lib/event.ts`:
+
+- `public/media/ocean-fallback-desktop.mp4` para telas largas;
+- `public/media/ocean-fallback-mobile.mp4` para telas de até 767 px.
+
+A ambiência usa `public/media/mare-ambiente-suave.mp3`, uma gravação natural de ondas com 4min47s, disponibilizada em domínio público no [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Waves.ogg). O player aplica filtro de graves, suavização das frequências altas, volume final baixo, fade-in de 3,6 segundos e fade-out de 1,6 segundo. O áudio nunca começa sem interação.
+
 ## Data do evento
 
-Edite `lib/event.ts`. O briefing informa apenas março de 2027; o dia 1º às 17h continua provisório e deve ser confirmado antes da publicação.
+Edite `lib/event.ts`. A data oficial é 08 de agosto de 2027. Como o horário da cerimônia não foi informado, a contagem regressiva usa provisoriamente 00h00 em `America/Belem`.
 
 ## Validação visual
 

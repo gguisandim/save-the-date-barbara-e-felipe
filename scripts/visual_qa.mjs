@@ -100,6 +100,7 @@ const beforeInteraction = await evaluate(`({
   act: document.querySelector('.experience-shell').dataset.act,
   scrollLocked: document.documentElement.scrollHeight === document.documentElement.clientHeight,
   cue: document.querySelector('.discovery-cue').innerText.trim(),
+  videoSource: new URL(document.querySelector('video').currentSrc).pathname,
   currentProgress: document.querySelector('.act-progress [aria-current="step"]').getAttribute('aria-label')
 })`);
 await sleep(1000);
@@ -111,6 +112,10 @@ const audioBefore = await evaluate(`({
   pressed: document.querySelector('.sound-toggle').getAttribute('aria-pressed'),
   paused: document.querySelector('audio').paused,
   currentTime: document.querySelector('audio').currentTime,
+  source: new URL(document.querySelector('audio').currentSrc).pathname,
+  duration: document.querySelector('audio').duration,
+  loop: document.querySelector('audio').loop,
+  visualState: document.querySelector('.sound-toggle').dataset.audioState,
   act: document.querySelector('.experience-shell').dataset.act
 })`);
 
@@ -142,9 +147,17 @@ const desktopInvitation = await evaluate(`({
 await pressKey("Home");
 await sleep(1000);
 const keyboardReturn = await evaluate("document.querySelector('.experience-shell').dataset.act");
+await mouseClick(".sound-toggle");
+await sleep(1800);
+const audioAfterPause = await evaluate(`({
+  paused: document.querySelector('audio').paused,
+  pressed: document.querySelector('.sound-toggle').getAttribute('aria-pressed'),
+  visualState: document.querySelector('.sound-toggle').dataset.audioState
+})`);
 
 await navigate(390, 844);
 await screenshot("mobile-390-act-1-ocean.png");
+const mobile390Media = await evaluate("new URL(document.querySelector('video').currentSrc).pathname");
 await touch(".ocean-touch-surface");
 await sleep(2300);
 await screenshot("mobile-390-act-2-photos.png");
@@ -255,8 +268,10 @@ console.log(JSON.stringify({
     photos: desktopPhotos,
     invitation: desktopInvitation,
     keyboardReturn,
+    audioAfterPause,
   },
   mobile390: {
+    videoSource: mobile390Media,
     photos: mobile390Photos,
     clientValidation,
     cepResult,

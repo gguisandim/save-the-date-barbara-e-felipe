@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState, type MouseEvent } from "react";
 import { InvitationDialog } from "@/components/InvitationDialog";
+import { WEDDING_DATE } from "@/lib/event";
 
 export type ScenePhase = "before" | "active" | "after";
 
@@ -92,6 +93,7 @@ export function InvitationAct({ phase, onRestart }: InvitationActProps) {
       <div className="closing-grade" aria-hidden="true" />
       <div className="closing-copy">
         <h2>Queremos você<br /><em>perto de nós.</em></h2>
+        <p className="closing-date">{WEDDING_DATE.numericLabel}</p>
         <p>Deixe seu endereço para receber o convite deste novo capítulo.</p>
         <button className="invitation-cta" type="button" onClick={() => setFormOpen(true)}>
           <span>Quero receber meu convite</span><span className="button-rule" aria-hidden="true" />

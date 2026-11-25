@@ -10,7 +10,7 @@ import {
 import { Countdown } from "@/components/Countdown";
 import { OceanCanvas, type OceanCanvasHandle } from "@/components/OceanCanvas";
 import { EditorialStory, InvitationAct, type ScenePhase } from "@/components/EditorialStory";
-import { EVENT } from "@/lib/event";
+import { EVENT, OCEAN_MEDIA } from "@/lib/event";
 
 const ACT_LABELS = ["Oceano", "Fotografias", "Convite"] as const;
 type Act = 0 | 1 | 2;
@@ -33,8 +33,7 @@ function phaseFor(index: Act, active: Act): ScenePhase {
 export function OceanScene() {
   const heroRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<OceanCanvasHandle>(null);
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const fadeRef = useRef<number | null>(null);
   const transitionTimerRef = useRef<number | null>(null);
@@ -45,8 +44,6 @@ export function OceanScene() {
   const [activeAct, setActiveAct] = useState<Act>(0);
   const [isMobile, setIsMobile] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [remoteReady, setRemoteReady] = useState(false);
-  const [remoteError, setRemoteError] = useState(false);
   const [audioOn, setAudioOn] = useState(false);
   const [audioError, setAudioError] = useState(false);
 
@@ -57,9 +54,9 @@ export function OceanScene() {
   }, []);
 
   useEffect(() => {
-    const widthQuery = window.matchMedia("(max-width: 767px)");
+    const widthQuery = window.matchMedia(OCEAN_MEDIA.mobileQuery);
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const syncWidth = () => { setIsMobile(widthQuery.matches); setRemoteReady(false); setRemoteError(false); };
+    const syncWidth = () => setIsMobile(widthQuery.matches);
     const syncMotion = () => setReducedMotion(motionQuery.matches);
     syncWidth();
     syncMotion();
@@ -72,11 +69,10 @@ export function OceanScene() {
   }, []);
 
   useEffect(() => {
-    for (const video of [localVideoRef.current, remoteVideoRef.current]) {
-      if (!video) continue;
-      if (reducedMotion || activeAct !== 0) video.pause();
-      else video.play().catch(() => { /* poster remains visible */ });
-    }
+    const video = videoRef.current;
+    if (!video) return;
+    if (reducedMotion || activeAct !== 0) video.pause();
+    else video.play().catch(() => { /* the color-graded background remains visible */ });
   }, [activeAct, isMobile, reducedMotion]);
 
   useEffect(() => {
@@ -152,21 +148,11 @@ export function OceanScene() {
     fadeRef.current = requestAnimationFrame(update);
   }, []);
 
-  const resumeLocalVideo = () => {
-    setRemoteReady(false);
-    if (activeAct === 0) localVideoRef.current?.play().catch(() => { /* poster remains */ });
-  };
-
-  const showRemoteVideo = () => {
-    setRemoteReady(true);
-    localVideoRef.current?.pause();
-  };
-
   const toggleSound = async () => {
     const audio = audioRef.current;
     if (!audio) return;
     if (audioOn) {
-      fadeAudio(0, 850);
+      fadeAudio(0, 1600);
       setAudioOn(false);
       return;
     }
@@ -176,9 +162,21 @@ export function OceanScene() {
         try {
           const context = new AudioContext();
           const source = context.createMediaElementSource(audio);
+          const highPass = context.createBiquadFilter();
+          const warmth = context.createBiquadFilter();
+          const softAir = context.createBiquadFilter();
           const gain = context.createGain();
+          highPass.type = "highpass";
+          highPass.frequency.value = 72;
+          highPass.Q.value = 0.35;
+          warmth.type = "lowshelf";
+          warmth.frequency.value = 260;
+          warmth.gain.value = -1.2;
+          softAir.type = "highshelf";
+          softAir.frequency.value = 2800;
+          softAir.gain.value = -2.4;
           gain.gain.value = 0;
-          source.connect(gain);
+          source.connect(highPass).connect(warmth).connect(softAir).connect(gain);
           gain.connect(context.destination);
           audioContextRef.current = context;
           gainRef.current = gain;
@@ -195,7 +193,7 @@ export function OceanScene() {
       await playing;
       setAudioOn(true);
       setAudioError(false);
-      fadeAudio(0.5, 2200);
+      fadeAudio(0.26, 3600);
     } catch {
       setAudioOn(false);
       setAudioError(true);
@@ -229,9 +227,7 @@ export function OceanScene() {
     }, reducedMotion ? 0 : 360);
   };
 
-  const localVideo = isMobile ? EVENT.localVideoMobile : EVENT.localVideoDesktop;
-  const poster = isMobile ? EVENT.posterMobile : EVENT.posterDesktop;
-  const remoteVideo = isMobile ? EVENT.oceanVideoMobile : EVENT.oceanVideoDesktop;
+  const oceanVideo = isMobile ? OCEAN_MEDIA.mobile : OCEAN_MEDIA.desktop;
 
   return (
     <main className="experience-shell" data-act={activeAct + 1}>
@@ -251,31 +247,14 @@ export function OceanScene() {
         <div className="film-frame" aria-hidden="true">
           <div className="film-poster" />
           {!reducedMotion && (
-            <>
-              <video
-                key={`local-${localVideo}`}
-                ref={localVideoRef}
-                className="sea-film local-film"
-                src={localVideo}
-                poster={poster}
-                muted loop playsInline autoPlay preload="auto"
-                aria-hidden="true"
-              />
-              {!remoteError && (
-                <video
-                  key={`remote-${remoteVideo}`}
-                  ref={remoteVideoRef}
-                  className={`sea-film remote-film ${remoteReady ? "remote-ready" : ""}`}
-                  src={remoteVideo}
-                  muted loop playsInline autoPlay preload="metadata"
-                  onPlaying={showRemoteVideo}
-                  onWaiting={resumeLocalVideo}
-                  onStalled={resumeLocalVideo}
-                  onError={() => { setRemoteError(true); resumeLocalVideo(); }}
-                  aria-hidden="true"
-                />
-              )}
-            </>
+            <video
+              key={oceanVideo}
+              ref={videoRef}
+              className="sea-film"
+              src={oceanVideo}
+              muted loop playsInline autoPlay preload="auto"
+              aria-hidden="true"
+            />
           )}
           <div className="sea-color-grade" />
           <div className="light-leak" />
@@ -296,6 +275,7 @@ export function OceanScene() {
           <span className="masthead-meta">O NOSSO PRÓXIMO CAPÍTULO</span>
           <button
             className={`sound-toggle ${audioOn ? "is-on" : ""}`}
+            data-audio-state={audioOn ? "playing" : "paused"}
             type="button"
             aria-label={audioOn ? "Desligar som ambiente" : "Ouvir praia tranquila com ondas suaves e gaivotas ao longe"}
             aria-pressed={audioOn}
@@ -313,7 +293,7 @@ export function OceanScene() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img className="bf-monogram" src="/media/bf-monogram.svg" alt="Monograma B e F" draggable="false" />
           </div>
-          <p className="hero-month reveal-item reveal-3"><span>{EVENT.monthLabel}</span><span className="month-dot">·</span><span>{EVENT.year}</span></p>
+          <p className="hero-month reveal-item reveal-3"><span>{EVENT.numericLabel}</span></p>
           <div className="hero-countdown reveal-item reveal-4"><Countdown /></div>
           <p className="hero-names reveal-item reveal-5">{EVENT.names.toUpperCase()}</p>
         </div>
@@ -345,7 +325,7 @@ export function OceanScene() {
 
       <audio
         ref={audioRef}
-        src="/media/brisa-e-gaivotas.mp3"
+        src="/media/mare-ambiente-suave.mp3"
         loop
         preload="none"
         onError={() => { setAudioError(true); setAudioOn(false); }}

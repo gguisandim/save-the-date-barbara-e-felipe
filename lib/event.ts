@@ -1,20 +1,28 @@
 /**
- * Dados editáveis do convite. Somente o mês e o ano foram informados.
- * Dia 1º e horário 17h são provisórios — confirme a data antes de publicar.
+ * Dados centralizados do convite.
+ * O horário da cerimônia não foi informado; a contagem usa provisoriamente
+ * meia-noite no fuso horário America/Belem (UTC-03:00).
  */
+export const WEDDING_DATE = {
+  day: "08",
+  monthLabel: "AGOSTO",
+  year: "2027",
+  longLabel: "08 de agosto de 2027",
+  numericLabel: "08.08.2027",
+  timeZone: "America/Belem",
+  dateISO: "2027-08-08T00:00:00-03:00",
+} as const;
+
+/** Única fonte de verdade para as duas mídias visuais da abertura. */
+export const OCEAN_MEDIA = {
+  mobileQuery: "(max-width: 767px)",
+  mobile: "/media/ocean-fallback-mobile.mp4",
+  desktop: "/media/ocean-fallback-desktop.mp4",
+} as const;
+
 export const EVENT = {
   names: "Bárbara & Felipe",
-  monthLabel: "MARÇO",
-  year: "2027",
-  dateISO: "2027-03-01T17:00:00-03:00",
-  // Pexels: vídeos verticais e horizontais sem trilha de áudio embutida.
-  oceanVideoMobile: "https://videos.pexels.com/video-files/32599724/13901186_1080_1920_25fps.mp4",
-  oceanVideoDesktop: "https://videos.pexels.com/video-files/30970653/13239312_1920_1080_30fps.mp4",
-  // Os vídeos de reserva são locais e tocam imediatamente, inclusive sem internet.
-  localVideoMobile: "/media/ocean-fallback-mobile.mp4",
-  localVideoDesktop: "/media/ocean-fallback-desktop.mp4",
-  posterMobile: "/media/ocean-poster-mobile.jpg",
-  posterDesktop: "/media/ocean-poster-desktop.jpg",
+  ...WEDDING_DATE,
 } as const;
 
 export type TimeLeft = {
