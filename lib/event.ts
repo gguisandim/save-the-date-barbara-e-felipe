@@ -16,8 +16,8 @@ export const WEDDING_DATE = {
 /** Única fonte de verdade para as duas mídias visuais da abertura. */
 export const OCEAN_MEDIA = {
   mobileQuery: "(max-width: 767px)",
-  mobile: "/media/ocean-fallback-mobile.mp4",
-  desktop: "/media/ocean-fallback-desktop.mp4",
+  mobile: "https://videos.pexels.com/video-files/32599724/13901186_1080_1920_25fps.mp4",
+  desktop: "https://videos.pexels.com/video-files/30970653/13239312_1920_1080_30fps.mp4",
 } as const;
 
 export const EVENT = {

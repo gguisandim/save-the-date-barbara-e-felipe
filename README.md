@@ -55,10 +55,12 @@ node scripts/prepare_photos.mjs <pasta-com-jpgs> public/photos
 
 ## Mídia da abertura e som
 
-A abertura utiliza somente duas mídias visuais, centralizadas em `OCEAN_MEDIA` dentro de `lib/event.ts`:
+A abertura utiliza somente os dois vídeos principais da Pexels, centralizados em `OCEAN_MEDIA` dentro de `lib/event.ts`:
 
-- `public/media/ocean-fallback-desktop.mp4` para telas largas;
-- `public/media/ocean-fallback-mobile.mp4` para telas de até 767 px.
+- vídeo horizontal `30970653 / 13239312_1920_1080_30fps.mp4` para telas largas;
+- vídeo vertical `32599724 / 13901186_1080_1920_25fps.mp4` para telas de até 767 px.
+
+Não existe fallback visual alternativo: enquanto o vídeo remoto carrega, a abertura mantém apenas o tratamento cromático marítimo.
 
 A ambiência usa `public/media/mare-ambiente-suave.mp3`, uma gravação natural de ondas com 4min47s, disponibilizada em domínio público no [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Waves.ogg). O player aplica filtro de graves, suavização das frequências altas, volume final baixo, fade-in de 3,6 segundos e fade-out de 1,6 segundo. O áudio nunca começa sem interação.
 
