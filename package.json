@@ -9,7 +9,8 @@
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "qa:security": "node scripts/security_qa.mjs"
   },
   "dependencies": {
     "next": "^15.5.0",

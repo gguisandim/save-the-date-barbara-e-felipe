@@ -1,10 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+} from "react";
 import { Countdown } from "@/components/Countdown";
-import { OceanCanvas } from "@/components/OceanCanvas";
-import { EditorialStory } from "@/components/EditorialStory";
+import { OceanCanvas, type OceanCanvasHandle } from "@/components/OceanCanvas";
+import { EditorialStory, InvitationAct, type ScenePhase } from "@/components/EditorialStory";
 import { EVENT } from "@/lib/event";
+
+const ACT_LABELS = ["Oceano", "Fotografias", "Convite"] as const;
+type Act = 0 | 1 | 2;
 
 function WaveIcon({ active }: { active: boolean }) {
   return (
@@ -16,16 +25,24 @@ function WaveIcon({ active }: { active: boolean }) {
   );
 }
 
-/** Ocean-first save-the-date. Local video always runs as a lightweight fallback. */
+function phaseFor(index: Act, active: Act): ScenePhase {
+  if (index === active) return "active";
+  return index < active ? "before" : "after";
+}
+
 export function OceanScene() {
   const heroRef = useRef<HTMLElement>(null);
+  const canvasRef = useRef<OceanCanvasHandle>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const fadeRef = useRef<number | null>(null);
+  const transitionTimerRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
   const audioStartedRef = useRef(false);
+  const previousActRef = useRef<Act>(0);
+  const [activeAct, setActiveAct] = useState<Act>(0);
   const [isMobile, setIsMobile] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [remoteReady, setRemoteReady] = useState(false);
@@ -33,12 +50,19 @@ export function OceanScene() {
   const [audioOn, setAudioOn] = useState(false);
   const [audioError, setAudioError] = useState(false);
 
+  const goToAct = useCallback((act: Act) => {
+    if (transitionTimerRef.current !== null) window.clearTimeout(transitionTimerRef.current);
+    transitionTimerRef.current = null;
+    setActiveAct(act);
+  }, []);
+
   useEffect(() => {
     const widthQuery = window.matchMedia("(max-width: 767px)");
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const syncWidth = () => { setIsMobile(widthQuery.matches); setRemoteReady(false); setRemoteError(false); };
     const syncMotion = () => setReducedMotion(motionQuery.matches);
-    syncWidth(); syncMotion();
+    syncWidth();
+    syncMotion();
     widthQuery.addEventListener("change", syncWidth);
     motionQuery.addEventListener("change", syncMotion);
     return () => {
@@ -50,19 +74,48 @@ export function OceanScene() {
   useEffect(() => {
     for (const video of [localVideoRef.current, remoteVideoRef.current]) {
       if (!video) continue;
-      if (reducedMotion) video.pause();
+      if (reducedMotion || activeAct !== 0) video.pause();
       else video.play().catch(() => { /* poster remains visible */ });
     }
-  }, [isMobile, reducedMotion]);
+  }, [activeAct, isMobile, reducedMotion]);
 
   useEffect(() => {
-    return () => {
-      if (fadeRef.current !== null) cancelAnimationFrame(fadeRef.current);
-      void audioContextRef.current?.close();
+    if (previousActRef.current === activeAct) return;
+    previousActRef.current = activeAct;
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(".experience-scene.scene-active")?.focus({ preventScroll: true });
+    });
+  }, [activeAct]);
+
+  useEffect(() => {
+    const handleKeyboard = (event: KeyboardEvent) => {
+      if (document.querySelector("dialog[open]")) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, select, textarea")) return;
+      if (event.key === "ArrowRight" || event.key === "PageDown") {
+        event.preventDefault();
+        setActiveAct((current) => Math.min(2, current + 1) as Act);
+      } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
+        event.preventDefault();
+        setActiveAct((current) => Math.max(0, current - 1) as Act);
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        setActiveAct(0);
+      } else if (event.key === "End") {
+        event.preventDefault();
+        setActiveAct(2);
+      }
     };
+    window.addEventListener("keydown", handleKeyboard);
+    return () => window.removeEventListener("keydown", handleKeyboard);
   }, []);
 
-  // Pause sound when the page loses visibility, so background tabs do not keep playing surf.
+  useEffect(() => () => {
+    if (fadeRef.current !== null) cancelAnimationFrame(fadeRef.current);
+    if (transitionTimerRef.current !== null) window.clearTimeout(transitionTimerRef.current);
+    void audioContextRef.current?.close();
+  }, []);
+
   useEffect(() => {
     const pauseInBackground = () => {
       if (document.hidden && audioRef.current) {
@@ -81,7 +134,6 @@ export function OceanScene() {
     const audio = audioRef.current;
     if (!audio) return;
     if (fadeRef.current !== null) cancelAnimationFrame(fadeRef.current);
-    // Web Audio gain is reliable on iOS, where HTMLMediaElement.volume may be fixed.
     const gain = gainRef.current;
     const beginning = gain ? gain.gain.value : audio.volume;
     const startAt = performance.now();
@@ -102,12 +154,12 @@ export function OceanScene() {
 
   const resumeLocalVideo = () => {
     setRemoteReady(false);
-    localVideoRef.current?.play().catch(() => { /* poster is still available */ });
+    if (activeAct === 0) localVideoRef.current?.play().catch(() => { /* poster remains */ });
   };
 
   const showRemoteVideo = () => {
     setRemoteReady(true);
-    localVideoRef.current?.pause(); // Avoid two video decoders on mobile.
+    localVideoRef.current?.pause();
   };
 
   const toggleSound = async () => {
@@ -137,14 +189,12 @@ export function OceanScene() {
       if (fadeRef.current !== null) cancelAnimationFrame(fadeRef.current);
       if (gainRef.current) gainRef.current.gain.value = 0;
       audio.volume = gainRef.current ? 1 : 0;
-      // Both calls start synchronously inside the click gesture (mobile Safari).
       const resumed = audioContextRef.current?.resume();
       const playing = audio.play();
       if (resumed) await resumed;
       await playing;
       setAudioOn(true);
       setAudioError(false);
-      // Deliberately less prominent than the original surf audio.
       fadeAudio(0.5, 2200);
     } catch {
       setAudioOn(false);
@@ -161,20 +211,42 @@ export function OceanScene() {
     heroRef.current?.style.setProperty("--parallax-y", `${y * -9}px`);
   };
 
+  const createRipple = (event: PointerEvent<HTMLElement>) => {
+    const area = heroRef.current?.getBoundingClientRect();
+    if (!area) return;
+    canvasRef.current?.rippleAt(event.clientX - area.left, event.clientY - area.top);
+  };
+
+  const discover = (fromKeyboard = false) => {
+    if (activeAct !== 0 || transitionTimerRef.current !== null) return;
+    if (fromKeyboard) {
+      const area = heroRef.current?.getBoundingClientRect();
+      if (area) canvasRef.current?.rippleAt(area.width / 2, area.height * 0.62);
+    }
+    transitionTimerRef.current = window.setTimeout(() => {
+      transitionTimerRef.current = null;
+      setActiveAct(1);
+    }, reducedMotion ? 0 : 360);
+  };
+
   const localVideo = isMobile ? EVENT.localVideoMobile : EVENT.localVideoDesktop;
   const poster = isMobile ? EVENT.posterMobile : EVENT.posterDesktop;
   const remoteVideo = isMobile ? EVENT.oceanVideoMobile : EVENT.oceanVideoDesktop;
 
   return (
-    <main>
+    <main className="experience-shell" data-act={activeAct + 1}>
       <section
-        className="hero" id="inicio" ref={heroRef}
+        className={`experience-scene hero scene-${phaseFor(0, activeAct)}`}
+        id="inicio"
+        ref={heroRef}
         onPointerMove={moveParallax}
         onPointerLeave={() => {
           heroRef.current?.style.setProperty("--parallax-x", "0px");
           heroRef.current?.style.setProperty("--parallax-y", "0px");
         }}
+        aria-hidden={activeAct !== 0}
         aria-label="Save the Date — Bárbara e Felipe"
+        tabIndex={-1}
       >
         <div className="film-frame" aria-hidden="true">
           <div className="film-poster" />
@@ -184,7 +256,8 @@ export function OceanScene() {
                 key={`local-${localVideo}`}
                 ref={localVideoRef}
                 className="sea-film local-film"
-                src={localVideo} poster={poster}
+                src={localVideo}
+                poster={poster}
                 muted loop playsInline autoPlay preload="auto"
                 aria-hidden="true"
               />
@@ -206,12 +279,20 @@ export function OceanScene() {
           )}
           <div className="sea-color-grade" />
           <div className="light-leak" />
-          <OceanCanvas />
+          <OceanCanvas ref={canvasRef} />
           <div className="film-vignette" />
         </div>
 
+        <button
+          className="ocean-touch-surface"
+          type="button"
+          aria-label="Criar uma ondulação e descobrir nossas fotografias"
+          onPointerDown={createRipple}
+          onClick={(event) => discover(event.detail === 0)}
+        />
+
         <header className="masthead">
-          <a href="#inicio" className="brand-mark" aria-label="Bárbara e Felipe, voltar ao início">B <span>·</span> F</a>
+          <button className="brand-mark" type="button" onClick={() => goToAct(0)} aria-label="Bárbara e Felipe, início">B <span>·</span> F</button>
           <span className="masthead-meta">O NOSSO PRÓXIMO CAPÍTULO</span>
           <button
             className={`sound-toggle ${audioOn ? "is-on" : ""}`}
@@ -229,7 +310,6 @@ export function OceanScene() {
         <div className="hero-content">
           <p className="hero-eyebrow reveal-item reveal-1">SAVE THE DATE</p>
           <div className="hero-identity reveal-item reveal-2">
-            {/* Monograma vetorial original fornecido para Bárbara e Felipe. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img className="bf-monogram" src="/media/bf-monogram.svg" alt="Monograma B e F" draggable="false" />
           </div>
@@ -240,15 +320,34 @@ export function OceanScene() {
 
         <div className="hero-bottom">
           <span className="hero-bottom-note" aria-live="polite">{audioError ? "TOQUE NOVAMENTE PARA ATIVAR O SOM" : "UM INSTANTE PARA SENTIR O MAR"}</span>
-          <a className="scroll-cue" href="#sobre" aria-label="Rolar para descobrir mais">
-            <span>DESLIZE PARA DESCOBRIR</span><span className="scroll-line" aria-hidden="true" />
-          </a>
+          <button className="discovery-cue" type="button" onClick={() => discover(true)}>
+            <span>TOQUE PARA DESCOBRIR</span><span className="scroll-line" aria-hidden="true" />
+          </button>
         </div>
       </section>
 
-      <EditorialStory />
+      <EditorialStory phase={phaseFor(1, activeAct)} onAdvance={() => goToAct(2)} />
+      <InvitationAct phase={phaseFor(2, activeAct)} onRestart={() => goToAct(0)} />
+
+      <nav className="act-progress" aria-label="Navegação entre atos">
+        {ACT_LABELS.map((label, index) => (
+          <button
+            key={label}
+            type="button"
+            className={activeAct === index ? "is-current" : ""}
+            aria-label={`Ir para ${label}`}
+            aria-current={activeAct === index ? "step" : undefined}
+            onClick={() => goToAct(index as Act)}
+          ><span /></button>
+        ))}
+      </nav>
+      <p className="scene-announcer" aria-live="polite">{`Ato ${activeAct + 1} de 3: ${ACT_LABELS[activeAct]}`}</p>
+
       <audio
-        ref={audioRef} src="/media/brisa-e-gaivotas.mp3" loop preload="none"
+        ref={audioRef}
+        src="/media/brisa-e-gaivotas.mp3"
+        loop
+        preload="none"
         onError={() => { setAudioError(true); setAudioOn(false); }}
       />
     </main>

@@ -1,6 +1,6 @@
 # Bárbara & Felipe — Save the Date
 
-Experiência editorial mobile-first em Next.js 15, React 19 e TypeScript. A abertura preserva o oceano em movimento, monograma, contagem regressiva e áudio ambiente; a sequência transforma o ensaio fotográfico em quatro capítulos e termina no envio seguro do endereço para recebimento do convite.
+Experiência editorial mobile-first em Next.js 15, React 19 e TypeScript. Todo o convite acontece em uma única viewport: oceano interativo, composição fotográfica e convite formam três atos controlados por estado React, sem rolagem da página ou mudança de rota. O áudio permanece montado e contínuo entre as cenas.
 
 ## Executar localmente
 
@@ -43,7 +43,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 Os endereços são gravados em SQLite fora da pasta pública. Cada payload é criptografado com AES-256-GCM e IV aleatório; o banco guarda apenas o conteúdo cifrado, metadados técnicos e um hash irreversível do endereço de rede usado para limitar abuso. A API expõe somente `POST /api/invitations`: não existe rota pública de listagem ou leitura.
 
-O endpoint valida todos os campos novamente no servidor, limita o tamanho da requisição, rejeita origem cross-site, usa campo-isca contra robôs e aplica limite de cinco envios por hora por hash. Para consultar ou exportar os dados, crie uma ferramenta administrativa autenticada fora da área pública — não adicione uma rota GET sem controle de acesso.
+O formulário valida os campos no navegador e o endpoint repete a validação no servidor. A API limita o corpo real da requisição, verifica a origem, usa campo-isca contra robôs e aplica limite de cinco envios por hora por hash. A verificação do limite e a gravação acontecem sob a mesma transação SQLite. Para consultar ou exportar os dados, crie uma ferramenta administrativa autenticada fora da área pública — não adicione uma rota GET sem controle de acesso.
 
 ## Fotografias
 
@@ -59,6 +59,14 @@ Edite `lib/event.ts`. O briefing informa apenas março de 2027; o dia 1º às 17
 
 ## Validação visual
 
-`scripts/visual_qa.mjs` usa Chrome DevTools Protocol contra uma instância Chromium já iniciada com porta de depuração. Ele captura hero, capítulos, encerramento e formulário em desktop e mobile, verifica overflow horizontal, consulta o ViaCEP e envia um endereço de teste para o banco configurado no ambiente de QA.
+`scripts/visual_qa.mjs` usa Chrome DevTools Protocol contra uma instância Chromium já iniciada com porta de depuração. Ele percorre os três atos por mouse, toque e teclado em 1440, 390 e 360 px; captura a ondulação do oceano e cada composição; verifica a ausência de rolagem da página, continuidade do áudio, foco, `prefers-reduced-motion`, rolagem interna do formulário, ViaCEP e envio real para o banco de QA.
+
+Além dos controles visíveis, `←`, `→`, `Page Up`, `Page Down`, `Home` e `End` navegam entre os atos. Os indicadores laterais também permitem acesso direto a qualquer cena.
 
 O site respeita `prefers-reduced-motion`, pausa o vídeo quando necessário e mantém o áudio ambiente ativo durante toda a navegação até que a pessoa o desligue ou saia da página.
+
+Com a aplicação de QA em execução, a auditoria de respostas da API e do conteúdo cifrado pode ser repetida com:
+
+```bash
+QA_URL=http://localhost:3100 QA_DB_PATH=.data/qa-invitations.sqlite npm run qa:security
+```

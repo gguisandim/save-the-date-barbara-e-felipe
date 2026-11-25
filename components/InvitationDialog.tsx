@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { BRAZILIAN_STATES, type InvitationAddress } from "@/lib/invitation";
+import {
+  BRAZILIAN_STATES,
+  validateInvitationAddress,
+  type InvitationAddress,
+} from "@/lib/invitation";
 
 type FormStatus = "idle" | "submitting" | "success" | "error";
 type FieldErrors = Partial<Record<keyof InvitationAddress, string>>;
@@ -80,17 +84,31 @@ export function InvitationDialog({ open, onClose }: { open: boolean; onClose: ()
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (status === "submitting") return;
-    setStatus("submitting");
     setErrors({});
     setMessage("");
     const formElement = event.currentTarget;
     const company = new FormData(formElement).get("company")?.toString() || "";
+    const validation = validateInvitationAddress({
+      ...form,
+      cep: form.cep.replace(/\D/g, ""),
+    });
+
+    if (!validation.success) {
+      setErrors(validation.errors);
+      setStatus("error");
+      setMessage("Revise os campos destacados antes de continuar.");
+      const firstInvalidField = Object.keys(validation.errors)[0];
+      formElement.querySelector<HTMLElement>(`[name="${firstInvalidField}"]`)?.focus();
+      return;
+    }
+
+    setStatus("submitting");
 
     try {
       const response = await fetch("/api/invitations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, cep: form.cep.replace(/\D/g, ""), company }),
+        body: JSON.stringify({ ...validation.data, company }),
       });
       const result = await response.json();
       if (!response.ok || !result.ok) {
@@ -107,6 +125,10 @@ export function InvitationDialog({ open, onClose }: { open: boolean; onClose: ()
 
   const close = () => {
     if (status === "submitting") return;
+    setStatus("idle");
+    setErrors({});
+    setMessage("");
+    setCepStatus("idle");
     onClose();
   };
 
@@ -158,17 +180,26 @@ export function InvitationDialog({ open, onClose }: { open: boolean; onClose: ()
                 <Field label="Cidade" name="city" value={form.city} error={errors.city} onChange={update} autoComplete="address-level2" />
                 <label className={`form-field ${errors.state ? "has-error" : ""}`}>
                   <span>Estado</span>
-                  <select name="state" value={form.state} onChange={update} autoComplete="address-level1" required aria-invalid={Boolean(errors.state)}>
+                  <select
+                    id="invitation-state"
+                    name="state"
+                    value={form.state}
+                    onChange={update}
+                    autoComplete="address-level1"
+                    required
+                    aria-invalid={Boolean(errors.state)}
+                    aria-describedby={errors.state ? "invitation-state-error" : undefined}
+                  >
                     <option value="">UF</option>
                     {BRAZILIAN_STATES.map((state) => <option key={state} value={state}>{state}</option>)}
                   </select>
-                  {errors.state && <small>{errors.state}</small>}
+                  {errors.state && <small id="invitation-state-error">{errors.state}</small>}
                 </label>
               </div>
               {status === "error" && <p className="form-error" role="alert">{message}</p>}
-              <button className="submit-address" type="submit" disabled={status === "submitting"}>
+              <button className="submit-address" type="submit" disabled={status === "submitting"} aria-busy={status === "submitting"}>
                 <span>{status === "submitting" ? "Guardando seu endereço…" : "Enviar meu endereço"}</span>
-                <span aria-hidden="true">→</span>
+                <span className="button-rule" aria-hidden="true" />
               </button>
               <p className="form-disclaimer">Este formulário é somente para o envio do convite e não representa confirmação de presença.</p>
             </form>
@@ -192,11 +223,21 @@ type FieldProps = {
 };
 
 function Field({ label, name, value, error, required = true, ...inputProps }: FieldProps) {
+  const fieldId = `invitation-${name}`;
+  const errorId = `${fieldId}-error`;
   return (
     <label className={`form-field ${error ? "has-error" : ""}`}>
       <span>{label}</span>
-      <input name={name} value={value} required={required} aria-invalid={Boolean(error)} {...inputProps} />
-      {error && <small>{error}</small>}
+      <input
+        id={fieldId}
+        name={name}
+        value={value}
+        required={required}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
+        {...inputProps}
+      />
+      {error && <small id={errorId}>{error}</small>}
     </label>
   );
 }

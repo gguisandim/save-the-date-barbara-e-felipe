@@ -55,46 +55,128 @@ async function screenshot(name) {
   await writeFile(path.join(outputDir, name), Buffer.from(result.data, "base64"));
 }
 
-async function navigate(width, height) {
+async function navigate(width, height, reducedMotion = false) {
   await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 });
+  await send("Emulation.setEmulatedMedia", {
+    features: [{ name: "prefers-reduced-motion", value: reducedMotion ? "reduce" : "no-preference" }],
+  });
   await send("Page.navigate", { url: baseUrl });
-  await sleep(5000);
-  await evaluate("history.scrollRestoration = 'manual'; window.scrollTo(0, 0)");
-  await sleep(200);
+  await sleep(3500);
+}
+
+async function selectorCenter(selector) {
+  return evaluate(`(() => {
+    const node = document.querySelector(${JSON.stringify(selector)});
+    if (!node) throw new Error("Missing selector: " + ${JSON.stringify(selector)});
+    const rect = node.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  })()`);
+}
+
+async function mouseClick(selector) {
+  const point = await selectorCenter(selector);
+  await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1 });
+}
+
+async function touch(selector) {
+  const point = await selectorCenter(selector);
+  await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: point.x, y: point.y }] });
+  await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+}
+
+async function pressKey(key, code = key) {
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key, code });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key, code });
 }
 
 await send("Page.enable");
 await send("Runtime.enable");
 
 await navigate(1440, 900);
-await screenshot("desktop-hero.png");
-for (const [selector, fileName, offset = 0] of [
-  [".story-opening", "desktop-couple.png", 360],
-  [".small-moments", "desktop-moments.png", 780],
-  [".horizon-chapter", "desktop-horizon.png", 710],
-  [".closing-chapter", "desktop-closing.png", 0],
-]) {
-  await evaluate(`{ const node = document.querySelector(${JSON.stringify(selector)}); window.scrollTo(0, window.scrollY + node.getBoundingClientRect().top + ${offset}); }`);
-  await sleep(500);
-  await screenshot(fileName);
-}
+await screenshot("desktop-act-1-ocean.png");
+const beforeInteraction = await evaluate(`({
+  act: document.querySelector('.experience-shell').dataset.act,
+  scrollLocked: document.documentElement.scrollHeight === document.documentElement.clientHeight,
+  cue: document.querySelector('.discovery-cue').innerText.trim(),
+  currentProgress: document.querySelector('.act-progress [aria-current="step"]').getAttribute('aria-label')
+})`);
+await sleep(1000);
+const stillWaiting = await evaluate("document.querySelector('.experience-shell').dataset.act");
 
-const desktopOverflow = await evaluate(`({
-  documentWidth: document.documentElement.scrollWidth,
-  viewportWidth: document.documentElement.clientWidth,
-  dialogPresent: Boolean(document.querySelector('.invitation-dialog'))
+await mouseClick(".sound-toggle");
+await sleep(600);
+const audioBefore = await evaluate(`({
+  pressed: document.querySelector('.sound-toggle').getAttribute('aria-pressed'),
+  paused: document.querySelector('audio').paused,
+  currentTime: document.querySelector('audio').currentTime,
+  act: document.querySelector('.experience-shell').dataset.act
 })`);
 
+await mouseClick(".ocean-touch-surface");
+await sleep(140);
+await screenshot("desktop-ocean-ripple.png");
+await sleep(2160);
+await screenshot("desktop-act-2-photos.png");
+const desktopPhotos = await evaluate(`({
+  act: document.querySelector('.experience-shell').dataset.act,
+  visiblePhotos: [...document.querySelectorAll('.act-photo')].filter((node) => getComputedStyle(node).opacity === '1').length,
+  scrollLocked: document.documentElement.scrollHeight === document.documentElement.clientHeight,
+  focusManaged: document.activeElement.matches('.experience-scene.scene-active'),
+  audioPaused: document.querySelector('audio').paused,
+  audioAdvanced: document.querySelector('audio').currentTime > ${audioBefore.currentTime}
+})`);
+
+await pressKey("ArrowRight");
+await sleep(1100);
+await screenshot("desktop-act-3-invitation.png");
+const desktopInvitation = await evaluate(`({
+  act: document.querySelector('.experience-shell').dataset.act,
+  ctaVisible: Boolean(document.querySelector('.scene-active .invitation-cta')),
+  chapterFourRemoved: !document.body.innerText.includes('CAPÍTULO IV'),
+  focusManaged: document.activeElement.matches('.experience-scene.scene-active'),
+  scrollLocked: document.documentElement.scrollHeight === document.documentElement.clientHeight
+})`);
+
+await pressKey("Home");
+await sleep(1000);
+const keyboardReturn = await evaluate("document.querySelector('.experience-shell').dataset.act");
+
 await navigate(390, 844);
-await screenshot("mobile-hero.png");
-await evaluate("{ const node = document.querySelector('.closing-chapter'); window.scrollTo(0, window.scrollY + node.getBoundingClientRect().top); }");
-await sleep(500);
-await screenshot("mobile-closing.png");
-await evaluate("document.querySelector('.invitation-cta').click()");
+await screenshot("mobile-390-act-1-ocean.png");
+await touch(".ocean-touch-surface");
+await sleep(2300);
+await screenshot("mobile-390-act-2-photos.png");
+const mobile390Photos = await evaluate(`({
+  act: document.querySelector('.experience-shell').dataset.act,
+  documentWidth: document.documentElement.scrollWidth,
+  viewportWidth: document.documentElement.clientWidth,
+  documentHeight: document.documentElement.scrollHeight,
+  viewportHeight: document.documentElement.clientHeight
+})`);
+
+await touch(".photo-act");
+await sleep(1100);
+await screenshot("mobile-390-act-3-invitation.png");
+await touch(".invitation-cta");
 await sleep(350);
 const dialogOpen = await evaluate("document.querySelector('.invitation-dialog').open");
-if (!dialogOpen) throw new Error("The invitation dialog did not open after the CTA click.");
-await screenshot("mobile-form.png");
+if (!dialogOpen) throw new Error("The invitation dialog did not open after the CTA touch.");
+await screenshot("mobile-390-form.png");
+
+const clientValidation = await evaluate(`(async () => {
+  document.querySelector('.submit-address').click();
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  return {
+    errors: document.querySelectorAll('.form-field.has-error').length,
+    focusedField: document.activeElement?.getAttribute('name') || '',
+    message: document.querySelector('.form-error')?.textContent.trim() || '',
+    requestSucceeded: Boolean(document.querySelector('.form-success')),
+    internalScroll: document.querySelector('.invitation-sheet').scrollHeight > document.querySelector('.invitation-sheet').clientHeight,
+    pageStillLocked: document.documentElement.scrollHeight === document.documentElement.clientHeight
+  };
+})()`);
 
 const cepResult = await evaluate(`(async () => {
   const set = (name, value) => {
@@ -105,7 +187,6 @@ const cepResult = await evaluate(`(async () => {
   };
   set('cep', '01310-100');
   const cep = document.querySelector('[name="cep"]');
-  await new Promise((resolve) => setTimeout(resolve, 150));
   cep.focus();
   cep.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
   await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -136,12 +217,55 @@ const submitResult = await evaluate(`(async () => {
     text: document.querySelector('.form-success')?.innerText || document.querySelector('.form-error')?.innerText || ''
   };
 })()`);
-await screenshot("mobile-success.png");
+await screenshot("mobile-390-success.png");
 
-const mobileOverflow = await evaluate(`({
+await navigate(360, 800);
+await touch(".ocean-touch-surface");
+await sleep(2300);
+await screenshot("mobile-360-act-2-photos.png");
+await pressKey("ArrowRight");
+await sleep(1100);
+await screenshot("mobile-360-act-3-invitation.png");
+const mobile360 = await evaluate(`({
+  act: document.querySelector('.experience-shell').dataset.act,
   documentWidth: document.documentElement.scrollWidth,
-  viewportWidth: document.documentElement.clientWidth
+  viewportWidth: document.documentElement.clientWidth,
+  documentHeight: document.documentElement.scrollHeight,
+  viewportHeight: document.documentElement.clientHeight,
+  ctaInsideViewport: (() => {
+    const rect = document.querySelector('.scene-active .invitation-cta').getBoundingClientRect();
+    return rect.top >= 0 && rect.bottom <= innerHeight;
+  })()
 })`);
 
-console.log(JSON.stringify({ desktopOverflow, mobileOverflow, cepResult, submitResult }, null, 2));
+await navigate(390, 844, true);
+const reducedMotionBefore = await evaluate(`({
+  videos: document.querySelectorAll('video').length,
+  act: document.querySelector('.experience-shell').dataset.act
+})`);
+await touch(".ocean-touch-surface");
+await sleep(100);
+const reducedMotionAfter = await evaluate("document.querySelector('.experience-shell').dataset.act");
+
+console.log(JSON.stringify({
+  desktop: {
+    beforeInteraction,
+    stillWaiting,
+    audioBefore,
+    photos: desktopPhotos,
+    invitation: desktopInvitation,
+    keyboardReturn,
+  },
+  mobile390: {
+    photos: mobile390Photos,
+    clientValidation,
+    cepResult,
+    submitResult,
+  },
+  mobile360,
+  reducedMotion: {
+    before: reducedMotionBefore,
+    afterInteraction: reducedMotionAfter,
+  },
+}, null, 2));
 socket.close();

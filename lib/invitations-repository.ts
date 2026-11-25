@@ -100,3 +100,26 @@ export function saveInvitation(address: InvitationAddress, ipHash: string): Stor
   statement.run(id, encrypted.encryptedPayload, encrypted.iv, encrypted.authTag, ipHash, createdAt);
   return { id, createdAt };
 }
+
+/** Keeps the abuse check and insert inside the same SQLite write lock. */
+export function saveInvitationWithRateLimit(
+  address: InvitationAddress,
+  ipHash: string,
+  sinceIso: string,
+  maximum: number,
+): StoredInvitation | null {
+  const db = getDatabase();
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    if (countRecentSubmissions(ipHash, sinceIso) >= maximum) {
+      db.exec("ROLLBACK");
+      return null;
+    }
+    const saved = saveInvitation(address, ipHash);
+    db.exec("COMMIT");
+    return saved;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
